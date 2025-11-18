@@ -15,7 +15,11 @@ app = FastAPI(title="Alzheimer's Analysis Pipeline API")
 
 # Global state for current notebook
 NOTEBOOKS_DIR = os.path.join(os.path.dirname(__file__), "notebooks")  # Local cache directory
+WORKSPACE_DIR = os.path.join(os.path.dirname(__file__), "workspace")  # Workspace for data files
 CURRENT_NOTEBOOK = "colab.ipynb"  # Default notebook
+
+# Ensure workspace directory exists
+os.makedirs(WORKSPACE_DIR, exist_ok=True)
 
 # Initialize Azure Blob Manager
 try:
@@ -518,6 +522,106 @@ async def get_current_notebook():
         raise
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Failed to read notebook: {str(e)}")
+
+
+# -----------------------------
+# Workspace file management endpoints
+# -----------------------------
+
+@app.post("/api/workspace/upload")
+async def upload_workspace_file(file: UploadFile = File(...)):
+    """Upload any file to workspace (CSV, JSON, TXT, PY, etc.)"""
+    try:
+        content = await file.read()
+
+        if USE_AZURE_STORAGE:
+            # Upload to Azure uploads container
+            result = blob_manager.upload_file(file.filename, content)
+
+            # Also save to local workspace for Jupyter kernel access
+            os.makedirs(WORKSPACE_DIR, exist_ok=True)
+            file_path = os.path.join(WORKSPACE_DIR, file.filename)
+            with open(file_path, "wb") as f:
+                f.write(content)
+
+            return result
+        else:
+            # Fallback: local storage only
+            os.makedirs(WORKSPACE_DIR, exist_ok=True)
+            file_path = os.path.join(WORKSPACE_DIR, file.filename)
+
+            with open(file_path, "wb") as f:
+                f.write(content)
+
+            file_stat = os.stat(file_path)
+            return {
+                "status": "success",
+                "filename": file.filename,
+                "size": file_stat.st_size,
+                "uploaded_at": datetime.fromtimestamp(file_stat.st_mtime).isoformat()
+            }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
+
+
+@app.get("/api/workspace/files")
+async def list_workspace_files():
+    """List all workspace files"""
+    try:
+        if USE_AZURE_STORAGE:
+            # Get list from Azure uploads container
+            files = blob_manager.list_files()
+            return {"files": files}
+        else:
+            # Fallback: local storage
+            if not os.path.exists(WORKSPACE_DIR):
+                return {"files": []}
+
+            files = []
+            for filename in os.listdir(WORKSPACE_DIR):
+                file_path = os.path.join(WORKSPACE_DIR, filename)
+                if os.path.isfile(file_path):
+                    file_stat = os.stat(file_path)
+                    files.append({
+                        "filename": filename,
+                        "size": file_stat.st_size,
+                        "modified_at": datetime.fromtimestamp(file_stat.st_mtime).isoformat()
+                    })
+
+            # Sort by modified time, most recent first
+            files.sort(key=lambda x: x["modified_at"], reverse=True)
+            return {"files": files}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to list files: {str(e)}")
+
+
+@app.delete("/api/workspace/{filename}")
+async def delete_workspace_file(filename: str):
+    """Delete a workspace file"""
+    try:
+        if USE_AZURE_STORAGE:
+            result = blob_manager.delete_file(filename)
+
+            # Also delete from local cache
+            file_path = os.path.join(WORKSPACE_DIR, filename)
+            if os.path.exists(file_path):
+                os.remove(file_path)
+
+            return result
+        else:
+            file_path = os.path.join(WORKSPACE_DIR, filename)
+            if not os.path.exists(file_path):
+                raise HTTPException(status_code=404, detail=f"File not found: {filename}")
+
+            os.remove(file_path)
+            return {"status": "success", "message": f"Deleted {filename}"}
+
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail=f"File not found: {filename}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to delete file: {str(e)}")
 
 
 if __name__ == "__main__":
