@@ -1,4 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
+import { Sidebar, SidebarSection } from './components/Sidebar';
+import { SidePanel } from './components/SidePanel';
 import { PipelinePanel } from './components/PipelinePanel';
 import { NotebookPanel } from './components/NotebookPanel';
 import { ChatPanel } from './components/ChatPanel';
@@ -32,6 +34,7 @@ function App() {
   const [notebooks, setNotebooks] = useState<Notebook[]>([]);
   const [currentNotebook, setCurrentNotebook] = useState<string>('colab.ipynb');
   const [notebookVersion, setNotebookVersion] = useState<number>(0); // Track notebook changes
+  const [activeSection, setActiveSection] = useState<SidebarSection>('notebooks'); // Sidebar state
   const API_BASE = import.meta.env.VITE_API_BASE || '';
 
   const handleStepClick = (stepId: string) => {
@@ -204,18 +207,30 @@ function App() {
 
   return (
     <div className="h-screen flex bg-gray-50">
-      {/* Left Panel - Pipeline Steps */}
+      {/* Left: Icon Sidebar */}
+      <Sidebar
+        activeSection={activeSection}
+        onSectionChange={setActiveSection}
+      />
+
+      {/* Left Panel: Collapsible Content */}
+      <SidePanel
+        activeSection={activeSection}
+        onClose={() => setActiveSection(null)}
+        notebooks={notebooks}
+        currentNotebook={currentNotebook}
+        onUploadNotebook={handleUploadNotebook}
+        onSelectNotebook={handleSelectNotebook}
+        onDeleteNotebook={handleDeleteNotebook}
+        onRefreshNotebooks={fetchNotebooks}
+      />
+
+      {/* Pipeline Steps Panel */}
       <div className="w-80 border-r border-gray-200 bg-white flex-shrink-0">
         <PipelinePanel
           steps={steps}
           currentStepId={currentStepId}
           onStepClick={handleStepClick}
-          notebooks={notebooks}
-          currentNotebook={currentNotebook}
-          onUploadNotebook={handleUploadNotebook}
-          onSelectNotebook={handleSelectNotebook}
-          onDeleteNotebook={handleDeleteNotebook}
-          onRefreshNotebooks={fetchNotebooks}
         />
       </div>
 

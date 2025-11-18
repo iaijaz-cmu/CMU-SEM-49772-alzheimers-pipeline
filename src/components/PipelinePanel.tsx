@@ -1,38 +1,18 @@
 import React from 'react';
 import { CheckCircle, Clock, AlertCircle } from 'lucide-react';
 import { PipelineStep } from '../types';
-import { NotebookSelector } from './NotebookSelector';
 import clsx from 'clsx';
-
-interface Notebook {
-  filename: string;
-  size: number;
-  modified_at: string;
-  is_current: boolean;
-}
 
 interface PipelinePanelProps {
   steps: PipelineStep[];
   currentStepId: string | null;
   onStepClick: (stepId: string) => void;
-  notebooks: Notebook[];
-  currentNotebook: string;
-  onUploadNotebook: (file: File) => Promise<void>;
-  onSelectNotebook: (filename: string) => Promise<void>;
-  onDeleteNotebook: (filename: string) => Promise<void>;
-  onRefreshNotebooks: () => Promise<void>;
 }
 
 export const PipelinePanel: React.FC<PipelinePanelProps> = ({
   steps,
   currentStepId,
   onStepClick,
-  notebooks,
-  currentNotebook,
-  onUploadNotebook,
-  onSelectNotebook,
-  onDeleteNotebook,
-  onRefreshNotebooks,
 }) => {
   const getStatusIcon = (status: PipelineStep['status']) => {
     switch (status) {
@@ -51,21 +31,12 @@ export const PipelinePanel: React.FC<PipelinePanelProps> = ({
     <div className="h-full flex flex-col">
       <div className="p-4 border-b border-gray-200">
         <h2 className="text-lg font-semibold text-gray-800">
-          Alzheimer's Analysis Pipeline
+          Pipeline Steps
         </h2>
         <p className="text-sm text-gray-600 mt-1">
           Click steps to view and execute code
         </p>
       </div>
-
-      <NotebookSelector
-        notebooks={notebooks}
-        currentNotebook={currentNotebook}
-        onUpload={onUploadNotebook}
-        onSelect={onSelectNotebook}
-        onDelete={onDeleteNotebook}
-        onRefresh={onRefreshNotebooks}
-      />
 
       <div className="flex-1 overflow-y-auto">
         {steps.map((step, index) => (
